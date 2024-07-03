@@ -5,6 +5,12 @@ export const toolMachine = setup({
     input: {} as {
       toolId: string
     },
+    events: {} as
+      | { type: 'turn_on' }
+      | { type: 'auth'; user_id: string }
+      | { type: 'turn_off' }
+      | { type: 'badge_out' }
+      | { type: 'usage_started' },
   },
   actions: {
     logState: () => {
@@ -13,12 +19,6 @@ export const toolMachine = setup({
     logUsage: () => {
       // TODO Log usage to DB/Redis/Notion
     },
-    unlocked: () => {
-      // TODO Remember user ID
-    },
-    locked: () => {
-      // TODO Forget user ID. Logging.
-    },
   },
 }).createMachine({
   id: 'tool',
@@ -26,6 +26,7 @@ export const toolMachine = setup({
   context: ({ input }) => ({
     currentUserId: undefined,
     usageStartTime: undefined,
+    lastUsedAt: undefined,
     toolId: input.toolId,
   }),
   states: {
@@ -39,19 +40,18 @@ export const toolMachine = setup({
     Online: {
       on: {
         turn_off: 'Offline',
-        auth: 'Unlocking',
-      },
-    },
-    Unlocking: {
-      on: {
-        success: 'Unlocked',
-        fail: 'Online',
-        turn_off: 'Offline',
+        auth: {
+          guard: ({ event }) => {
+            return event.user_id === '123'
+          },
+          actions: assign({
+            currentUserId: ({ event }) => event.user_id,
+          }),
+          target: 'Unlocked',
+        },
       },
     },
     Unlocked: {
-      entry: ['unlocked'],
-      exit: ['locked'],
       on: {
         badge_out: 'Online',
         usage_started: 'In_Use',
