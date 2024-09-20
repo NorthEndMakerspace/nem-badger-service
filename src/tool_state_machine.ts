@@ -4,18 +4,17 @@ export const toolMachine = setup({
   types: {
     input: {} as {
       toolId: string
+      usageThreshold: number
+      timeoutSeconds: number
     },
     events: {} as
       | { type: 'turn_on' }
-      | { type: 'auth'; user_id: string }
       | { type: 'turn_off' }
+      | { type: 'badge_in'; user_id: string }
       | { type: 'badge_out' }
-      | { type: 'usage_started' },
+      | { type: 'usage_wattage'; wattage: number },
   },
   actions: {
-    logState: () => {
-      // TODO log state change
-    },
     logUsage: () => {
       // TODO Log usage to DB/Redis/Notion
     },
@@ -28,10 +27,11 @@ export const toolMachine = setup({
     usageStartTime: undefined,
     lastUsedAt: undefined,
     toolId: input.toolId,
+    usageThreshold: input.usageThreshold,
+    timeoutSeconds: input.timeoutSeconds,
   }),
   states: {
     Offline: {
-      entry: ['logState'],
       on: {
         ping: 'Online',
         turn_on: 'Online',
@@ -40,7 +40,7 @@ export const toolMachine = setup({
     Online: {
       on: {
         turn_off: 'Offline',
-        auth: {
+        badge_in: {
           guard: ({ event }) => {
             return event.user_id === '123'
           },
@@ -54,7 +54,10 @@ export const toolMachine = setup({
     Unlocked: {
       on: {
         badge_out: 'Online',
-        usage_started: 'In_Use',
+        usage_wattage: {
+          target: 'In_Use',
+          guard: ({ event, context }) => event.wattage >= context.usageThreshold,
+        },
         turn_off: 'Offline',
       },
     },
@@ -69,7 +72,10 @@ export const toolMachine = setup({
         }),
       ],
       on: {
-        usage_stopped: 'Unlocked',
+        usage_wattage: {
+          target: 'Unlocked',
+          guard: ({ event, context }) => event.wattage < context.usageThreshold,
+        },
         badge_out: 'Online',
         turn_off: 'Offline',
       },
