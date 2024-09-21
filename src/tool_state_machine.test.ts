@@ -1,37 +1,43 @@
-import jest from 'jest'
 import { toolMachine } from './tool_state_machine'
 import { ActorRefFrom, createActor } from 'xstate'
 
 const WATTAGE_THRESHOLD = 100
 const TIMEOUT = 600
+const USER_ID = '123'
+jest.useFakeTimers()
+
 describe('ToolStateMachine', () => {
   let toolLaser: ActorRefFrom<typeof toolMachine>
+  let logger: typeof jest.fn
   // let listenerSpy = jest.fn()
   beforeEach(() => {
+    logger = jest.fn()
+
     toolLaser = createActor(toolMachine, {
       input: {
         toolId: 'laser_mira',
         usageThreshold: WATTAGE_THRESHOLD,
         timeoutSeconds: TIMEOUT,
+        logger,
       },
     })
-    // toolLaser.subscribe(listenerSpy)
     toolLaser.start()
   })
 
   afterEach(() => {
-    // listenerSpy.mockClear()
+    // reset logger mock
+
+    jest.clearAllMocks()
   })
 
   describe('Offline state', () => {
     it('starts in Offline state', () => {
-      // expect(listenerSpy).toHaveBeenCalledTimes(1)
       // verify that first call has value: "Offline"
       expect(toolLaser.getSnapshot().value).toBe('Offline')
     })
 
     it('should not transition to other states', () => {
-      toolLaser.send({ type: 'badge_in', user_id: '123' })
+      toolLaser.send({ type: 'badge_in', user_id: USER_ID })
       expect(toolLaser.getSnapshot().value).toBe('Offline')
     })
 
@@ -41,6 +47,9 @@ describe('ToolStateMachine', () => {
     })
 
     it('should log online_start when becoming Online', () => {
+      expect(logger).toHaveBeenCalledTimes(0)
+      toolLaser.send({ type: 'turn_on' })
+      expect(logger).toHaveBeenCalledWith('online_start')
       // TODO
     })
   })
@@ -56,10 +65,10 @@ describe('ToolStateMachine', () => {
     })
 
     it('should transition to Unlocked when auth is correct', () => {
-      toolLaser.send({ type: 'badge_in', user_id: '123' })
+      toolLaser.send({ type: 'badge_in', user_id: USER_ID })
       const state = toolLaser.getSnapshot()
       expect(state.value).toBe('Unlocked')
-      expect(state.context.currentUserId).toBe('123')
+      expect(state.context.currentUserId).toBe(USER_ID)
     })
 
     it('should remain in Online when auth is not correct', () => {
@@ -68,22 +77,25 @@ describe('ToolStateMachine', () => {
       expect(state.value).toBe('Online')
     })
 
-    it('should log online_ended when becomes Offline', () => {
-      // TODO
+    it('should log online_end when becomes Offline', () => {
+      toolLaser.send({ type: 'turn_off' })
+      expect(toolLaser.getSnapshot().value).toBe('Offline')
+      expect(logger).toHaveBeenCalledWith('online_end')
     })
 
-    it('should log unlocked_started when becomes Unlocked', () => {
-      // TODO
+    it('should log unlocked_start when becomes Unlocked', () => {
+      toolLaser.send({ type: 'badge_in', user_id: USER_ID })
+      expect(logger).toHaveBeenCalledWith('unlocked_start', { userId: USER_ID })
     })
   })
 
   describe('when Unlocked', () => {
     beforeEach(() => {
       toolLaser.send({ type: 'turn_on' })
-      toolLaser.send({ type: 'badge_in', user_id: '123' })
+      toolLaser.send({ type: 'badge_in', user_id: USER_ID })
     })
 
-    it('usageStartTime must be empty before usage_started', () => {
+    it('usageStartTime must be empty before usage_start', () => {
       expect(toolLaser.getSnapshot().context.usageStartTime).toBeUndefined()
     })
 
@@ -109,14 +121,18 @@ describe('ToolStateMachine', () => {
       expect(toolLaser.getSnapshot().value).toBe('Online')
     })
 
-    it('should log usage_started event when becomes In_Use', () => {
-      // TODO
-      expect(false).toBe(true)
+    it('should log unlocked_start event when becomes In_Use', () => {
+      expect(logger).toHaveBeenCalledWith('unlocked_start', { userId: USER_ID })
     })
 
-    it('should log unlocked_ended event when badge_out', () => {
-      // TODO
-      expect(false).toBe(true)
+    it('should log unlocked_end event when badge_out', () => {
+      toolLaser.send({ type: 'badge_out' })
+      expect(logger).toHaveBeenCalledWith('unlocked_end', { userId: USER_ID })
+    })
+
+    it('should log usage_start event when wattage is above threshold', () => {
+      toolLaser.send({ type: 'usage_wattage', wattage: WATTAGE_THRESHOLD + 1 })
+      expect(logger).toHaveBeenCalledWith('usage_start', { userId: USER_ID })
     })
   })
 
@@ -124,7 +140,7 @@ describe('ToolStateMachine', () => {
     let usage_start_ts
     beforeEach(() => {
       toolLaser.send({ type: 'turn_on' })
-      toolLaser.send({ type: 'badge_in', user_id: '123' })
+      toolLaser.send({ type: 'badge_in', user_id: USER_ID })
       usage_start_ts = Date.now()
       toolLaser.send({ type: 'usage_wattage', wattage: WATTAGE_THRESHOLD + 1 })
     })
@@ -143,24 +159,25 @@ describe('ToolStateMachine', () => {
       expect(toolLaser.getSnapshot().value).toBe('Unlocked')
     })
 
-    it('should report usage_time into Notion', () => {
-      // TODO
+    it('should calculate usage time correctly', () => {
+      const USAGE_SECONDS = 100
+      jest.advanceTimersByTime(USAGE_SECONDS * 1000)
+      toolLaser.send({ type: 'usage_wattage', wattage: WATTAGE_THRESHOLD - 1 })
+      expect(logger).toHaveBeenCalledWith('usage_end', { userId: USER_ID, usageSeconds: USAGE_SECONDS })
     })
 
-    it('should log usage_stopped event when becomes Unlocked', () => {
-      // TODO
+    it('should log usage_end when badge_out', () => {
+      const USAGE_SECONDS = 100
+      jest.advanceTimersByTime(USAGE_SECONDS * 1000)
+      toolLaser.send({ type: 'badge_out' })
+      expect(logger).toHaveBeenCalledWith('usage_end', { userId: USER_ID, usageSeconds: USAGE_SECONDS })
     })
 
-    it('should log usage_ended when usage_stopped', () => {
-      // TODO
-    })
-
-    it('should log usage_ended when badge_out', () => {
-      // TODO
-    })
-
-    it('should log usage_ended when turn_off', () => {
-      // TODO
+    it('should log usage_ended when suddenly turns off', () => {
+      const USAGE_SECONDS = 100
+      jest.advanceTimersByTime(USAGE_SECONDS * 1000)
+      toolLaser.send({ type: 'turn_off' })
+      expect(logger).toHaveBeenCalledWith('usage_end', { userId: USER_ID, usageSeconds: USAGE_SECONDS })
     })
   })
 })
