@@ -108,6 +108,11 @@ describe('ToolStateMachine', () => {
       expect(toolLaser.getSnapshot().value).toBe('In_Use')
     })
 
+    it('should transition to In_Use on start_usage', () => {
+      toolLaser.send({ type: 'start_usage' })
+      expect(toolLaser.getSnapshot().value).toBe('In_Use')
+    })
+
     it('should remember time when usage has started', () => {
       // fake Date.now to return a fixed value
       const now = Date.now()
@@ -142,6 +147,11 @@ describe('ToolStateMachine', () => {
       toolLaser.send({ type: 'badge_in', user_id: USER_ID })
       usage_start_ts = Date.now()
       toolLaser.send({ type: 'usage_wattage', wattage: WATTAGE_THRESHOLD + 1 })
+    })
+
+    it('should transition to Unlocked on stop_usage', () => {
+      toolLaser.send({ type: 'stop_usage' })
+      expect(toolLaser.getSnapshot().value).toBe('Unlocked')
     })
 
     it('should stay In_Use while usage_wattage is above threshold', () => {

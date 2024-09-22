@@ -53,6 +53,14 @@ export class Tool {
     this.stateMachine.send({ type: 'turn_off' })
   }
 
+  startUsage() {
+    this.stateMachine.send({ type: 'start_usage' })
+  }
+
+  stopUsage() {
+    this.stateMachine.send({ type: 'stop_usage' })
+  }
+
   async lock() {
     const currentUserId = this.stateMachine.getSnapshot().context.currentUserId
     if (!currentUserId) {

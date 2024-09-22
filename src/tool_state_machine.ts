@@ -19,6 +19,8 @@ export const ToolMachine = setup({
       | { type: 'turn_off' }
       | { type: 'badge_in'; user_id: USER_ID }
       | { type: 'badge_out' }
+      | { type: 'start_usage' }
+      | { type: 'stop_usage' }
       | { type: 'usage_wattage'; wattage: number },
   },
   actions: {
@@ -75,6 +77,7 @@ export const ToolMachine = setup({
       exit: [{ type: 'logUserEvent', params: { event: 'unlocked_end' } }],
       on: {
         badge_out: 'Online',
+        start_usage: 'In_Use',
         usage_wattage: {
           target: 'In_Use',
           guard: ({ event, context }) => event.wattage >= context.usageThreshold,
@@ -100,6 +103,7 @@ export const ToolMachine = setup({
           target: 'Unlocked',
           guard: ({ event, context }) => event.wattage < context.usageThreshold,
         },
+        stop_usage: 'Unlocked',
         badge_out: 'Online',
         turn_off: 'Offline',
       },

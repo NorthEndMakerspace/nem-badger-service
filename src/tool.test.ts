@@ -52,7 +52,7 @@ describe('Tool', () => {
     })
   })
 
-  it('end to end scenario', async () => {
+  it('end to end scenario: wattage based', async () => {
     toolLaser.becameOnline()
     toolLaser.reportWattage(WATTAGE_THRESHOLD * 0.3)
     jest.advanceTimersByTime(1000)
@@ -72,6 +72,21 @@ describe('Tool', () => {
     jest.advanceTimersByTime(100000)
     toolLaser.reportWattage(WATTAGE_THRESHOLD * 0.9)
     expect(logger).toHaveBeenCalledWith('usage_end', { userId: USER_ID, usageSeconds: 120 })
+    toolLaser.lock()
+    expect(logger).toHaveBeenCalledWith('unlocked_end', { userId: USER_ID })
+  })
+
+  it('end to end scenario: direct control', async () => {
+    toolLaser.becameOnline()
+    jest.advanceTimersByTime(1000)
+    await toolLaser.unlock(USER_ID)
+    expect(logger).toHaveBeenCalledWith('unlocked_start', { userId: USER_ID })
+    expect(logger).not.toHaveBeenCalledWith('usage_start')
+    toolLaser.startUsage()
+    expect(logger).toHaveBeenCalledWith('usage_start', { userId: USER_ID })
+    jest.advanceTimersByTime(100000)
+    toolLaser.stopUsage()
+    expect(logger).toHaveBeenCalledWith('usage_end', { userId: USER_ID, usageSeconds: 100 })
     toolLaser.lock()
     expect(logger).toHaveBeenCalledWith('unlocked_end', { userId: USER_ID })
   })
