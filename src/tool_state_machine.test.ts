@@ -1,19 +1,20 @@
-import { toolMachine } from './tool_state_machine'
+import { ToolMachine } from './tool_state_machine'
 import { ActorRefFrom, createActor } from 'xstate'
 
 const WATTAGE_THRESHOLD = 100
 const TIMEOUT = 600
 const USER_ID = '123'
-jest.useFakeTimers()
 
 describe('ToolStateMachine', () => {
-  let toolLaser: ActorRefFrom<typeof toolMachine>
+  let toolLaser: ActorRefFrom<typeof ToolMachine>
   let logger: typeof jest.fn
-  // let listenerSpy = jest.fn()
+
   beforeEach(() => {
     logger = jest.fn()
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2023-01-01T00:00:00Z').getTime())
 
-    toolLaser = createActor(toolMachine, {
+    toolLaser = createActor(ToolMachine, {
       input: {
         toolId: 'laser_mira',
         usageThreshold: WATTAGE_THRESHOLD,
@@ -25,9 +26,8 @@ describe('ToolStateMachine', () => {
   })
 
   afterEach(() => {
-    // reset logger mock
-
     jest.clearAllMocks()
+    jest.useRealTimers()
   })
 
   describe('Offline state', () => {
@@ -50,7 +50,6 @@ describe('ToolStateMachine', () => {
       expect(logger).toHaveBeenCalledTimes(0)
       toolLaser.send({ type: 'turn_on' })
       expect(logger).toHaveBeenCalledWith('online_start')
-      // TODO
     })
   })
 

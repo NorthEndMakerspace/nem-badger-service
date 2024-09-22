@@ -1,13 +1,18 @@
-import { setup, assign, emit } from 'xstate'
+import { setup, assign } from 'xstate'
+
+type Event = 'online_start' | 'online_end'
+type UserEvent = 'unlocked_start' | 'unlocked_end' | 'usage_start'
+type UsageEvent = 'usage_end'
+export type AllEvents = Event | UserEvent | UsageEvent
 
 type USER_ID = string
-export const toolMachine = setup({
+export const ToolMachine = setup({
   types: {
     input: {} as {
       toolId: string
       usageThreshold: number
       timeoutSeconds: number
-      logger: (event: string, data: unknown) => void
+      logger: (event: AllEvents, data: unknown) => void
     },
     events: {} as
       | { type: 'turn_on' }
@@ -17,10 +22,10 @@ export const toolMachine = setup({
       | { type: 'usage_wattage'; wattage: number },
   },
   actions: {
-    logEvent: ({ context }, params: { event: 'online_start' | 'online_end' }) => {
+    logEvent: ({ context }, params: { event: Event }) => {
       context.logger(params.event)
     },
-    logUserEvent: ({ context }, params: { event: 'unlocked_start' | 'unlocked_end' | 'usage_start' }) => {
+    logUserEvent: ({ context }, params: { event: UserEvent }) => {
       context.logger(params.event, { userId: context.currentUserId })
     },
     logUsage: ({ context }) => {
@@ -80,7 +85,7 @@ export const toolMachine = setup({
     In_Use: {
       entry: [
         assign({
-          usageStartTime: ({ context }) => Date.now(),
+          usageStartTime: () => Date.now(),
         }),
         { type: 'logUserEvent', params: { event: 'usage_start' } },
       ],
